@@ -1,0 +1,18 @@
+[project]
+name = "competitor-intelligence-dashboard"
+version = "1.0.0"
+description = "E-Commerce Competitor Intelligence Dashboard — Scrapy + Pandas + FastAPI + Streamlit"
+requires-python = ">=3.11"
+dependencies = [
+    "scrapy==2.13.0",
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "pandas==2.2.3",
+    "streamlit==1.41.1",
+    "requests==2.32.3",
+    "pydantic==2.10.4",
+    "itemadapter==0.9.1",
+]
+
+[tool.uv]
+package = false
