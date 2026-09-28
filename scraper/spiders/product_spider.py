@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from urllib.parse import urljoin
 
 import scrapy
 
@@ -9,7 +8,16 @@ from scraper.items import ProductItem
 class ProductSpider(scrapy.Spider):
     """Crawls books.toscrape.com as a stand-in e-commerce catalog.
 
+    Selector strategy (hybrid):
+      * CSS   -> simple class/tag lookups (links, title, price, rating, pagination)
+      * XPath -> anything CSS cannot express: matching a table row by its label text,
+                 picking a breadcrumb by position, collapsing messy whitespace
+
+    Target site is configurable via settings / environment:
+        TARGET_START_URL, TARGET_ALLOWED_DOMAINS
+
     Standalone run examples:
+        scrapy crawl products -a category="travel" -a max_pages=2
         scrapy crawl products -a category="travel" -s OUTPUT_FILE=data/raw/travel.jsonl
         scrapy crawl products                       # crawls every category
     """
@@ -18,10 +26,15 @@ class ProductSpider(scrapy.Spider):
     allowed_domains = ["books.toscrape.com"]
     start_urls = ["https://books.toscrape.com/index.html"]
 
-    custom_settings = {
-        "DOWNLOAD_DELAY": 0.5,
-        "CONCURRENT_REQUESTS_PER_DOMAIN": 4,
-    }
+    @classmethod
+    def from_crawler(cls, crawler, *args, **kwargs):
+        spider = super().from_crawler(crawler, *args, **kwargs)
+        settings = crawler.settings
+        spider.start_urls = [settings.get("TARGET_START_URL", cls.start_urls[0])]
+        spider.allowed_domains = settings.getlist(
+            "TARGET_ALLOWED_DOMAINS", cls.allowed_domains
+        )
+        return spider
 
     def __init__(self, category: str = "", max_pages: int = 5, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -30,13 +43,13 @@ class ProductSpider(scrapy.Spider):
 
     def parse(self, response):
         """Read the category sidebar and fan out to the matching category (or all)."""
-        category_links = response.css("div.side_categories ul li ul li a")
         categories = {}
-        for link in category_links:
+        for link in response.css("div.side_categories ul li ul li a"):
             name = (link.css("::text").get() or "").strip()
             href = link.attrib.get("href")
             if name and href:
-                categories[name.lower()] = urljoin(response.url, href)
+                # response.urljoin -> always a complete URL with scheme + domain
+                categories[name.lower()] = response.urljoin(href)
 
         if self.category_filter:
             matches = {
@@ -62,52 +75,53 @@ class ProductSpider(scrapy.Spider):
             )
 
     def parse_listing(self, response):
-        """Extract product cards from a category page and follow pagination."""
+        """Extract product links from a category page and follow pagination."""
         category_name = response.meta.get("category_name", "Unknown")
         page_count = response.meta.get("page_count", 1)
 
-        for card in response.css("article.product_pod"):
-            relative_url = card.css("h3 a::attr(href)").get()
-            if not relative_url:
-                continue
-            detail_url = urljoin(response.url, relative_url)
+        for href in response.css("article.product_pod h3 a::attr(href)").getall():
             yield scrapy.Request(
-                detail_url,
+                response.urljoin(href),
                 callback=self.parse_detail,
                 meta={"category_name": category_name},
             )
 
         next_href = response.css("li.next a::attr(href)").get()
         if next_href and page_count < self.max_pages:
-            next_url = urljoin(response.url, next_href)
             yield scrapy.Request(
-                next_url,
+                response.urljoin(next_href),
                 callback=self.parse_listing,
                 meta={"category_name": category_name, "page_count": page_count + 1},
             )
 
     def parse_detail(self, response):
         item = ProductItem()
-        item["title"] = (response.css("div.product_main h1::text").get() or "").strip()
-        item["price_raw"] = response.css("p.price_color::text").get("")
-        item["availability_raw"] = " ".join(
-            response.css("p.availability::text").getall()
-        ).strip()
 
-        rating_classes = response.css("p.star-rating::attr(class)").get("") or ""
+        item["title"] = (response.css("div.product_main h1::text").get() or "").strip()
+   
+        rating_classes = response.css("div.product_main p.star-rating::attr(class)").get("")
         item["rating_raw"] = rating_classes.replace("star-rating", "").strip()
 
-        reviews_raw = response.xpath(
-            "//table//tr[th[contains(text(),'Number of reviews')]]/td/text()"
-        ).get("0")
-        item["reviews_raw"] = reviews_raw
+        item["availability_raw"] = response.xpath(
+            'normalize-space(//div[contains(@class, "product_main")]'
+            '/p[contains(@class, "availability")])'
+        ).get("")
 
-        breadcrumb_category = response.css("ul.breadcrumb li:nth-child(3) a::text").get()
+        # Find the spec-table row by its label text, independent of row order.
+        item["reviews_raw"] = response.xpath(
+            '//table//tr[th[normalize-space(.)="Number of reviews"]]/td/text()'
+        ).get("0")
+
+        # Third breadcrumb item (Home > Books > <Category>) selected by position.
+        breadcrumb_category = response.xpath(
+            '//ul[@class="breadcrumb"]/li[3]/a/text()'
+        ).get()
         item["category"] = (
             breadcrumb_category.strip()
             if breadcrumb_category
             else response.meta.get("category_name", "Unknown")
         )
-        item["url"] = response.url
+
+        item["url"] = response.url  # absolute: scheme + domain + path
         item["scraped_at"] = datetime.now(timezone.utc).isoformat()
         yield item

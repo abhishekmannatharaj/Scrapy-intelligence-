@@ -64,10 +64,10 @@ Runtime-created crawl files also go into `data/raw/`, with names based on the ca
 ### Scraper
 
 - `scrapy.cfg` tells Scrapy to load settings from `scraper.settings`.
-- `scraper/spiders/product_spider.py` starts at the catalog home page, filters category links by a case-insensitive substring when a category is given, follows listing pagination up to `max_pages` for each matched category, and visits each product detail page.
-- `scraper/items.py` defines `ProductItem`. The spider initially fills raw text fields such as `price_raw` and `rating_raw`; the pipeline replaces these with normalized fields.
-- `scraper/pipelines.py` contains two ordered pipelines. `CleaningPipeline` drops products without a title or parseable price and converts rating, price, stock availability, and review count to numeric values. `JsonWriterPipeline` writes one JSON object per line to the configured `OUTPUT_FILE`.
-- `scraper/settings.py` sets the spider modules, polite crawl behavior, retries, AutoThrottle, pipeline order, and default output path (`data/raw/products.jsonl`). The API overrides the output path for each job.
+- `scraper/settings.py` is now the single configuration hub for the crawler: it loads values from environment variables and an optional project-root `.env`, supports `APP_ENV` profiles (`dev`, `staging`, `prod`), defines helper functions for strings/ints/floats/bools/lists, and exposes target URL, domain, HTTP cache, storage, Postgres, Mongo, and Redis/RabbitMQ/Celery settings.
+- `scraper/spiders/product_spider.py` starts from a configurable `TARGET_START_URL`, reads `TARGET_ALLOWED_DOMAINS` and category filters from the crawler settings, matches category names by case-insensitive substring when a category is supplied, follows listing pagination up to `max_pages` for each selected category, and visits each product detail page.
+- `scraper/items.py` defines `ProductItem`. The spider fills raw text fields such as `price_raw`, `rating_raw`, and `availability_raw`; the cleaning pipeline normalizes them into the final product schema.
+- `scraper/pipelines.py` contains the cleaning and writing stages. `CleaningPipeline` drops invalid entries, normalizes prices and ratings, parses availability and review counts, and removes raw intermediate values. `JsonWriterPipeline` appends each cleaned item as one JSON object per line to the configured `OUTPUT_FILE`.
 - `scraper/__init__.py` and `scraper/spiders/__init__.py` are package markers.
 
 ### Dashboard and Data
@@ -111,12 +111,15 @@ The job response is returned immediately with status `running`. The dashboard po
 
 ### Spider and Pipeline Logic
 
-The spider extracts category names from the sidebar. A non-empty category argument matches any category name containing that keyword, ignoring case; an empty category selects all discovered categories. `max_pages` is applied independently to each selected category listing. Product detail requests produce raw text values and metadata such as canonical URL and UTC scrape timestamp.
+The spider reads category names from the sidebar and can be targeted by a `category` argument or by the environment-configured `TARGET_START_URL` and `TARGET_ALLOWED_DOMAINS`. A non-empty category argument matches any category containing that keyword, ignoring case; an empty category selects all discovered categories. `max_pages` is applied independently to each selected category listing. Product detail requests produce raw text fields plus metadata such as the absolute URL and UTC scrape timestamp.
+
+The spider also uses the crawler settings during startup via `from_crawler`, so all values are sourced through Scrapy settings rather than hardcoded in the spider class. The selector block is intentionally constrained to `PRODUCT_MAIN` to avoid the unrelated related-products carousel on the same page.
 
 Pipeline order is important:
 
 1. `CleaningPipeline` cleans the title; drops entries with missing titles or invalid prices; parses currency text to a float; maps star words (`One` through `Five`) to integers; extracts stock count; defaults invalid review counts to zero; title-cases the category; and removes raw intermediate fields.
 2. `JsonWriterPipeline` opens the configured destination when the spider starts and appends each cleaned item as one JSON line.
+3. Additional storage backends can be enabled through `STORAGE_BACKENDS` such as `jsonl`, `postgres`, and `mongo`, with the corresponding pipeline classes registered by priority.
 
 The resulting records use this schema:
 
@@ -210,6 +213,9 @@ Use `-a category=mystery` for another category. Omit the category argument to cr
 - Dependency versions and the Python minimum are declared in both `pyproject.toml` and `requirements.txt`; keep them aligned when changing dependencies.
 - `API_BASE_URL` configures where Streamlit sends API requests.
 - Scrapy's default output is `data/raw/products.jsonl`; API-triggered crawls set a unique output file with `OUTPUT_FILE`.
+- The scraper configuration is environment-driven via `scraper/settings.py`. It loads optional `.env` values, supports `APP_ENV` profiles, and exposes per-run overrides for crawl behavior such as `ROBOTSTXT_OBEY`, `DOWNLOAD_DELAY`, `CONCURRENT_REQUESTS`, `AUTOTHROTTLE_*`, and `HTTPCACHE_*`.
+- `STORAGE_BACKENDS` supports multiple output backends and currently accepts `jsonl`, `postgres`, and `mongo`. Each backend maps to a pipeline class registered with a priority in `ITEM_PIPELINES`.
+- `TARGET_START_URL` and `TARGET_ALLOWED_DOMAINS` let the spider target a different catalog while keeping the site-specific extraction logic centralized in configuration.
 - The dashboard constrains its page slider to 1-10, but the API request model itself does not define that range.
 - Scrapy obeys `robots.txt`, has a download delay, uses per-domain concurrency limits, and enables retries and AutoThrottle.
 - CORS currently allows every origin. This is convenient for local development but should be restricted before deployment.

@@ -6,32 +6,77 @@ A small data collection and analysis application built with Scrapy, FastAPI, Pan
 
 ## Features
 
-- Crawl one matching book category or all categories, with a configurable page limit.
-- Track background crawl jobs through the API.
-- Store each crawl as a separate JSONL file under `data/raw/`.
-- Clean and analyze product data: price, rating, availability, reviews, categories, and title keywords.
-- View KPIs, charts, and a price-filtered product catalog in Streamlit.
-- Download filtered dashboard data or an API-generated CSV.
+- Crawl a specific category or all categories with a configurable page limit.
+- Launch background jobs through FastAPI and track status by job ID.
+- Store each crawl as a separate JSONL file in `data/raw/`.
+- Clean and normalize product data for price, rating, availability, reviews, category, and metadata.
+- View summary KPIs, charts, and a price-filtered catalog in Streamlit.
+- Download filtered results or API-generated CSV exports.
+- Use environment-driven Scrapy settings for target URLs, concurrency, caching, storage backends, and deployment profiles.
 
 ## Project Structure
 
 ```text
 .
-├── app/                  # FastAPI application, API routes, and analytics
-├── data/raw/             # Sample crawl output and generated JSONL files
-├── scraper/              # Scrapy settings, spider, items, and pipelines
-├── streamlit_app.py      # Streamlit dashboard
-├── scrapy.cfg            # Scrapy project settings entry point
-├── pyproject.toml        # Project metadata and pinned dependencies
-└── requirements.txt      # pip-compatible dependency list
+├── app/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── api/
+│   │   ├── __init__.py
+│   │   └── v1/
+│   │       ├── __init__.py
+│   │       └── router.py
+│   └── services/
+│       ├── __init__.py
+│       └── analytics.py
+├── data/
+│   └── raw/
+│       ├── .gitkeep
+│       └── *.jsonl
+├── scraper/
+│   ├── __init__.py
+│   ├── items.py
+│   ├── pipelines.py
+│   ├── settings.py
+│   └── spiders/
+│       ├── __init__.py
+│       └── product_spider.py
+├── about.md
+├── streamlit_app.py
+├── scrapy.cfg
+├── pyproject.toml
+├── requirements.txt
+└── README.md
 ```
 
-For the complete file-by-file guide and data flow, see [about.md](about.md).
+For the complete project guide and data flow, see [about.md](about.md).
 
 ## Requirements
 
 - Python 3.11 or newer
 - Internet access for the sample crawl
+
+## Environment Configuration
+
+The scraper is configured through [scraper/settings.py](scraper/settings.py). It supports:
+
+- environment variables and optional `.env` loading
+- `APP_ENV` profiles: `dev`, `staging`, and `prod`
+- target configuration via `TARGET_START_URL` and `TARGET_ALLOWED_DOMAINS`
+- polite crawl settings like `DOWNLOAD_DELAY`, `CONCURRENT_REQUESTS`, and `AUTOTHROTTLE_*`
+- optional storage backends via `STORAGE_BACKENDS` (`jsonl`, `postgres`, `mongo`)
+- output file override with `OUTPUT_FILE`
+
+Example `.env` values:
+
+```env
+APP_ENV=dev
+TARGET_START_URL=https://books.toscrape.com/index.html
+TARGET_ALLOWED_DOMAINS=books.toscrape.com
+OUTPUT_FILE=data/raw/travel.jsonl
+ROBOTSTXT_OBEY=true
+CONCURRENT_REQUESTS=8
+```
 
 ## Setup
 
@@ -40,13 +85,18 @@ From the repository root, create and activate a virtual environment, then instal
 PowerShell:
 
 ```powershell
-uv venv
-.venv\Scripts\activate
-uv pip install -r requirements.txt
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
 
-If PowerShell blocks activation, run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned` in that terminal, then activate the environment again.
+If PowerShell blocks activation, run:
 
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+```
+
+then activate the environment again.
 
 ## Run the Application
 
@@ -89,20 +139,32 @@ With dependencies installed, Scrapy can be run directly from the repository root
 python -m scrapy crawl products -a category=travel -a max_pages=3 -s OUTPUT_FILE=data/raw/travel.jsonl
 ```
 
-Omit `-a category=travel` to crawl every category. The output path can be changed with `OUTPUT_FILE`.
+Use `-a category=mystery` for another category. Omit the category argument to crawl every category. The output path can be changed with `OUTPUT_FILE`.
 
 ## Output Data
 
-Each non-empty JSONL line represents one product. The normalized fields are `title`, `price`, `rating`, `availability`, `reviews`, `category`, `url`, and `scraped_at`. Numeric fields are stored as numbers, and timestamps use UTC ISO 8601 format. Example:
+Each non-empty JSONL line represents one product. The normalized fields are `title`, `price`, `rating`, `availability`, `reviews`, `category`, `url`, and `scraped_at`.
+
+Example:
 
 ```json
 {"title":"A Sample Book","category":"Travel","url":"https://books.toscrape.com/catalogue/sample/index.html","scraped_at":"2026-09-26T20:27:07+00:00","price":26.08,"rating":5,"availability":1,"reviews":0}
 ```
 
+## Scraper Behavior
+
+The crawler in [scraper/spiders/product_spider.py](scraper/spiders/product_spider.py) reads category names from the side menu, matches a category filter as a case-insensitive substring when supplied, and walks pagination up to the configured `max_pages` value. It also resolves the start URL and allowed domains from Scrapy settings at startup via `from_crawler`.
+
+The spider uses a hybrid selector strategy:
+
+- CSS selectors for simple class and attribute lookups
+- XPath for table-row and breadcrumb lookups that require positional or label-based matching
+
 ## Operational Notes
 
-- Crawl job metadata is stored in memory. Restarting the API loses job status lookup, although JSONL files remain on disk.
+- Crawl job metadata is stored in memory. Restarting the API loses job status lookup, although JSONL outputs remain on disk.
 - The API enables permissive CORS and is intended for local demonstration; review this before exposing it publicly.
 - Scrapy obeys `robots.txt` and uses download delays, retries, and AutoThrottle settings.
-- A category is matched as a case-insensitive substring of the site's category names. A keyword with no match produces an empty crawl.
+- A category match is case-insensitive and uses substring matching against the site’s category names. A keyword with no match produces an empty crawl.
 - No automated test suite is currently included in the repository.
+- Generated JSONL files can accumulate in `data/raw/`; decide on retention and cleanup before running repeated or large crawls.
