@@ -2,7 +2,15 @@
 
 A small data collection and analysis application built with Scrapy, FastAPI, Pandas, and Streamlit. It crawls the sample catalog at [Books to Scrape](https://books.toscrape.com/), normalizes product details into JSON Lines files, calculates summary metrics, and presents the results in an interactive dashboard.
 
-> Books to Scrape is a demonstration site. This project is an example workflow, not a production-ready crawler for arbitrary retailers.
+> Books to Scrape is a demonstration site. This project is an example workflow, built for practice.
+
+<img width="1500" height="645" alt="image" src="https://github.com/user-attachments/assets/441a9d91-ff07-4aa9-be6f-d1c38092b845" />
+
+<img width="727" height="320" alt="image" src="https://github.com/user-attachments/assets/a53fb3a0-1733-419a-8a6c-42cde1a389ad" />
+
+<img width="1869" height="908" alt="image" src="https://github.com/user-attachments/assets/d053a032-a3eb-4eff-92da-aa99878bb498" />
+
+
 
 ## Features
 
