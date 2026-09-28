@@ -40,20 +40,13 @@ From the repository root, create and activate a virtual environment, then instal
 PowerShell:
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+uv venv
+.venv\Scripts\activate
+uv pip install -r requirements.txt
 ```
 
 If PowerShell blocks activation, run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned` in that terminal, then activate the environment again.
 
-macOS/Linux:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-```
 
 ## Run the Application
 
