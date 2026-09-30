@@ -1,0 +1,37 @@
+# Python Caching & Virtual Environments
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Secret & Configurations
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Databases & Docker Mount Volumes
+.data/
+postgres_data/
+mongo_data/
+redis_data/
+*.db
+*.sqlite3
+
+# Scraping & Browser Automation Outputs
+.scrapy/
+.playwright/
+/screenshots/
+/downloads/
+.html/
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Analytics Data & Exports
+*.csv
+*.xlsx
+*.json
