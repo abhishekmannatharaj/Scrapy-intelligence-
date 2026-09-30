@@ -11,9 +11,15 @@ Streamlit ──► FastAPI ──► RabbitMQ ──► Celery worker ──►
 ```
 # 🚀 Scalable E-Commerce Scraper Platform
 
-A production-grade, distributed web crawling architecture built to scrape dynamic, JavaScript-heavy e-commerce websites at scale.
+<img width="1906" height="747" alt="image" src="https://github.com/user-attachments/assets/7f64219c-85f0-4b12-8abe-9059fa3d2515" />
+<img width="1853" height="816" alt="image" src="https://github.com/user-attachments/assets/406c60f2-847c-4b03-ab20-0c2da8a45cc4" />
+<img width="1860" height="822" alt="image" src="https://github.com/user-attachments/assets/4ec06304-55f2-4588-b020-a908f4415d1b" />
+<img width="1860" height="853" alt="image" src="https://github.com/user-attachments/assets/9e5bc2d5-a36b-4855-8ffb-e336c3c2f591" />
+<img width="1682" height="746" alt="image" src="https://github.com/user-attachments/assets/55f77fd2-8b8c-47fd-afc6-91d77cbbd4cf" />
+<img width="1748" height="1001" alt="image" src="https://github.com/user-attachments/assets/b7dbf835-22b0-4824-bd7a-c5da4af9d3ba" />
 
-## 📌 Architecture Overview (The 30-Second Mental Model)
+
+## 📌 Architecture Overview
 
 Think of this platform as an **Airport Baggage System**:
 
