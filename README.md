@@ -162,6 +162,9 @@ docker compose down -v
 
 - **Jobs**: `POST /jobs` stores a `CrawlJob` (PostgreSQL), enqueues `crawl.run` on RabbitMQ
   (task id = job id) and returns `202`. Status moves `pending → running → success | failed`.
+  `GET /jobs/summary` reports counts by status; job responses include elapsed `duration_seconds`
+  once a crawl starts, plus the worker error when a job fails. The dashboard surfaces recent
+  failures and run durations for operational triage.
 - **Worker**: each job runs `CrawlerProcess` in a fresh interpreter (`python -m app.tasks.crawl_tasks`),
   because Twisted's reactor can't be restarted in a long-lived worker. A timeout guards runaway crawls.
 - **Extraction** (`universal_spider.py`): JSON-LD Product → OpenGraph → CSS/XPath fallbacks, merged

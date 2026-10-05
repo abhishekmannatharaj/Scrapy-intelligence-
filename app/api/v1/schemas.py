@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, computed_field
 
 T = TypeVar("T")
 
@@ -27,6 +27,22 @@ class JobOut(BaseModel):
     created_at: datetime
     started_at: datetime | None = None
     finished_at: datetime | None = None
+
+    @computed_field
+    @property
+    def duration_seconds(self) -> float | None:
+        if self.started_at is None:
+            return None
+        finished_at = self.finished_at or datetime.now(tz=self.started_at.tzinfo)
+        return max(round((finished_at - self.started_at).total_seconds(), 2), 0.0)
+
+
+class JobSummaryOut(BaseModel):
+    total_jobs: int
+    pending: int
+    running: int
+    success: int
+    failed: int
 
 
 class ProductOut(BaseModel):

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.schemas import JobCreate, JobOut, Page
+from app.api.v1.schemas import JobCreate, JobOut, JobSummaryOut, Page
 from app.db.models import CrawlJob, JobStatus
 from app.db.postgres import get_db
 from app.tasks.crawl_tasks import run_crawl
@@ -44,6 +44,16 @@ async def list_jobs(status: str | None = None, limit: int = Query(20, ge=1, le=2
     total = await db.scalar(select(func.count()).select_from(q.subquery()))
     rows = (await db.scalars(q.order_by(CrawlJob.created_at.desc()).limit(limit).offset(offset))).all()
     return Page[JobOut](items=rows, total=total or 0, limit=limit, offset=offset)
+
+
+@router.get("/summary", response_model=JobSummaryOut)
+async def summarize_jobs(db: AsyncSession = Depends(get_db)) -> JobSummaryOut:
+    result = await db.execute(select(CrawlJob.status, func.count()).group_by(CrawlJob.status))
+    counts = {"pending": 0, "running": 0, "success": 0, "failed": 0}
+    for status, count in result.all():
+        if status in counts:
+            counts[status] = count
+    return JobSummaryOut(total_jobs=sum(counts.values()), **counts)
 
 
 @router.get("/{job_id}", response_model=JobOut)

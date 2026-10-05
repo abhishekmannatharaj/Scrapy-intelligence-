@@ -9,7 +9,7 @@ API = os.getenv("API_URL", "http://localhost:8000/api/v1")
 
 st.set_page_config(page_title="Market Pulse", page_icon="📈", layout="wide")
 st.title("📈 Market Pulse")
-st.caption("Distributed e-commerce crawling and market intelligence")
+st.caption("Market intelligence and crawl operations, at a glance.")
 
 with st.sidebar:
     st.header("Navigation")
@@ -29,10 +29,31 @@ def fetch(path: str, **params):
 try:
     report = fetch("/products/analytics")
     jobs = fetch("/jobs", limit=10)
+    summary = fetch("/jobs/summary")
+    failed_jobs = fetch("/jobs", status="failed", limit=5)
 except httpx.HTTPError as exc:
     st.error(f"API unreachable: {exc}")
     st.stop()
 
+st.subheader("Crawl operations")
+job_cols = st.columns(5)
+job_cols[0].metric("All jobs", f"{summary['total_jobs']:,}")
+job_cols[1].metric("Running", summary["running"])
+job_cols[2].metric("Queued", summary["pending"])
+job_cols[3].metric("Completed", summary["success"])
+job_cols[4].metric("Failed", summary["failed"])
+
+if failed_jobs["items"]:
+    with st.expander(f"Recent failures ({failed_jobs['total']})", expanded=True):
+        for index, job in enumerate(failed_jobs["items"]):
+            st.markdown(f"**{job['url']}** · `{job['id'][:8]}`")
+            st.caption(f"Engine: {job['spider']} · Items stored: {job['items_scraped']}")
+            st.error(job["error"] or "The worker marked this crawl as failed without an error message.")
+            if index < len(failed_jobs["items"]) - 1:
+                st.divider()
+
+st.divider()
+st.subheader("Catalog overview")
 k = report["kpis"]
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Products tracked", f"{k['total_products']:,}")
@@ -43,7 +64,10 @@ c4.metric("In stock", f"{k['in_stock_rate']:.0%}" if k["in_stock_rate"] is not N
 st.subheader("Recent crawl jobs")
 if jobs["items"]:
     df = pd.DataFrame(jobs["items"])[["id", "url", "spider", "status", "items_scraped",
-                                      "created_at", "finished_at"]]
+                                      "duration_seconds", "created_at"]]
+    df["id"] = df["id"].str[:8]
+    df["duration_seconds"] = df["duration_seconds"].map(
+        lambda value: f"{value:.1f}s" if pd.notna(value) else "—")
     st.dataframe(df, use_container_width=True, hide_index=True)
 else:
     st.info("No crawls yet. Start one from **Trigger crawl**.")

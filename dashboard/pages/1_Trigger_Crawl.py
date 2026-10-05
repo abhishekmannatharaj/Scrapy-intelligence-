@@ -10,6 +10,7 @@ TERMINAL = {"success", "failed"}
 
 st.set_page_config(page_title="Trigger Crawl", page_icon="🕷️", layout="wide")
 st.title("🕷️ Trigger Crawl")
+st.caption("Start a crawl and follow its status, duration, and any failure details.")
 
 with st.form("crawl"):
     url = st.text_input("Catalog or search-listing URL", "https://books.toscrape.com/")
@@ -34,25 +35,30 @@ if submitted:
 def tracker():
     job_id = st.session_state.get("job_id")
     if not job_id:
-        st.info("Submit a crawl to see live progress.")
+        st.info("Submit a crawl to monitor its status and runtime.")
         return
     try:
-        job = httpx.get(f"{API}/jobs/{job_id}", timeout=15).json()
+        response = httpx.get(f"{API}/jobs/{job_id}", timeout=15)
+        response.raise_for_status()
+        job = response.json()
     except httpx.HTTPError as exc:
         st.warning(f"Status unavailable: {exc}")
         return
-    st.subheader(f"Job `{job['id']}`")
+    st.subheader(f"Job `{job['id'][:8]}`")
+    st.caption(job["url"])
     status = job["status"]
-    progress = min(job["items_scraped"] / max(job["max_pages"], 1), 1.0)
-    icon = {"pending": "⏳", "running": "🔄", "success": "✅", "failed": "❌"}[status]
-    c1, c2, c3 = st.columns(3)
+    icon = {"pending": "⏳", "running": "🔄", "success": "✅", "failed": "❌"}.get(status, "•")
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("Status", f"{icon} {status}")
     c2.metric("Items stored", job["items_scraped"])
-    c3.metric("Engine", job["spider"])
+    c3.metric("Duration", f"{job['duration_seconds']:.1f}s"
+              if job["duration_seconds"] is not None else "—")
+    c4.metric("Engine", job["spider"])
     if status == "running":
-        st.progress(progress, text="Crawling…")
+        st.info("The worker is crawling. Duration updates while the job is active.")
     if job.get("error"):
-        st.error(job["error"])
+        with st.expander("Failure details", expanded=True):
+            st.error(job["error"])
     if status in TERMINAL:
         st.caption("Finished. Open **Market Analytics** to explore the results.")
 
@@ -62,9 +68,12 @@ tracker()
 st.divider()
 st.subheader("Recent jobs")
 try:
-    jobs = httpx.get(f"{API}/jobs", params={"limit": 15}, timeout=15).json()["items"]
+    response = httpx.get(f"{API}/jobs", params={"limit": 15}, timeout=15)
+    response.raise_for_status()
+    jobs = response.json()["items"]
     if jobs:
         st.dataframe(pd.DataFrame(jobs)[["id", "url", "spider", "status", "items_scraped",
-                                         "created_at"]], use_container_width=True, hide_index=True)
+                                         "duration_seconds", "created_at"]],
+                                  use_container_width=True, hide_index=True)
 except httpx.HTTPError:
     st.caption("Job history unavailable.")
