@@ -7,6 +7,13 @@ import streamlit as st
 
 API_BASE = os.environ.get("API_BASE_URL", "http://localhost:8000/api/v1")
 
+
+def _request_json(method, url, **kwargs):
+    response = requests.request(method, url, timeout=10, **kwargs)
+    response.raise_for_status()
+    return response.json()
+
+
 st.set_page_config(page_title="Competitor Intelligence Dashboard", layout="wide")
 st.title("🛒 E-Commerce Competitor Intelligence Dashboard")
 
@@ -27,43 +34,63 @@ with st.sidebar:
 
 if run_crawl:
     try:
-        resp = requests.post(
+        result = _request_json(
+            "POST",
             f"{API_BASE}/crawl",
             json={"category": category, "max_pages": max_pages},
-            timeout=10,
         )
-        resp.raise_for_status()
-        st.session_state.job_id = resp.json()["job_id"]
+        st.session_state.job_id = result["job_id"]
         st.success(f"Crawl started — job {st.session_state.job_id}")
     except requests.RequestException as exc:
         st.error(f"Could not reach the API: {exc}")
+    except (KeyError, ValueError) as exc:
+        st.error(f"The API returned an invalid crawl response: {exc}")
 
 job_id = st.session_state.job_id
 
 if job_id:
     status_placeholder = st.empty()
     status = "running"
+    job_error = None
     with st.spinner("Crawling and processing..."):
         while status == "running":
             try:
-                status_resp = requests.get(f"{API_BASE}/crawl/{job_id}/status", timeout=10)
-                status_resp.raise_for_status()
-                status = status_resp.json()["status"]
+                status_result = _request_json(
+                    "GET", f"{API_BASE}/crawl/{job_id}/status"
+                )
+                status = status_result["status"]
+                job_error = status_result.get("error")
             except requests.RequestException as exc:
                 st.error(f"Status check failed: {exc}")
+                status = "error"
+                break
+            except (KeyError, ValueError) as exc:
+                st.error(f"The API returned an invalid job status: {exc}")
+                status = "error"
                 break
             if status == "running":
                 time.sleep(1.5)
 
     if status == "failed":
-        st.error(f"Crawl failed for job {job_id}. Check backend logs.")
+        st.error(job_error or f"Crawl failed for job {job_id}. Check backend logs.")
     elif status == "completed":
         status_placeholder.success(f"Job {job_id} completed ✅")
 
-        analytics_resp = requests.get(f"{API_BASE}/analytics", params={"job_id": job_id}, timeout=10)
-        products_resp = requests.get(f"{API_BASE}/products", params={"job_id": job_id}, timeout=10)
-        kpis = analytics_resp.json()
-        products = products_resp.json()["products"]
+        try:
+            kpis = _request_json(
+                "GET", f"{API_BASE}/analytics", params={"job_id": job_id}
+            )
+            products_result = _request_json(
+                "GET", f"{API_BASE}/products", params={"job_id": job_id}
+            )
+            products = products_result["products"]
+        except requests.RequestException as exc:
+            st.error(f"Could not load crawl results: {exc}")
+            st.stop()
+        except (KeyError, ValueError) as exc:
+            st.error(f"The API returned invalid crawl results: {exc}")
+            st.stop()
+
         df = pd.DataFrame(products)
 
         if df.empty:
@@ -102,5 +129,7 @@ if job_id:
                 file_name=f"competitor_products_{job_id}.csv",
                 mime="text/csv",
             )
+    elif status != "error":
+        st.error(f"The API returned an unexpected crawl status: {status}")
 else:
     st.info("Enter a category and click **Run Crawl** to get started.")

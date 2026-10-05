@@ -6,7 +6,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.services import analytics
 
@@ -23,7 +23,7 @@ JOBS: dict[str, dict] = {}
 
 class CrawlRequest(BaseModel):
     category: str = ""
-    max_pages: int = 5
+    max_pages: int = Field(default=5, ge=1, le=10)
 
 
 class CrawlResponse(BaseModel):
@@ -52,12 +52,18 @@ def trigger_crawl(payload: CrawlRequest):
         "-s", "LOG_LEVEL=WARNING",
     ]
 
-    process = subprocess.Popen(
-        cmd,
-        cwd=str(PROJECT_ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    try:
+        process = subprocess.Popen(
+            cmd,
+            cwd=str(PROJECT_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not start the crawl process: {exc}",
+        ) from exc
 
     JOBS[job_id] = {
         "process": process,
