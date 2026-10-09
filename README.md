@@ -11,9 +11,11 @@ Streamlit ──► FastAPI ──► RabbitMQ ──► Celery worker ──►
 ```
 # 🚀 Scalable E-Commerce Scraper Platform
 
+<img width="1892" height="642" alt="Screenshot 2026-10-09 113431" src="https://github.com/user-attachments/assets/48a7f2f5-4dbc-4d00-8064-4ec68c67f298" />
+<img width="1887" height="807" alt="Screenshot 2026-10-09 113346" src="https://github.com/user-attachments/assets/7ae210bd-cbcd-4ee8-81de-7b707efc3afa" />
+<img width="1895" height="852" alt="image" src="https://github.com/user-attachments/assets/b48de734-9bb0-4ffe-ac11-04e49ccbf55f" />
 
 <img width="1917" height="985" alt="image" src="https://github.com/user-attachments/assets/7b738c21-92a1-4ff0-bcb9-25328489730c" />
-
 <img width="1860" height="853" alt="image" src="https://github.com/user-attachments/assets/9e5bc2d5-a36b-4855-8ffb-e336c3c2f591" />
 <img width="1682" height="746" alt="image" src="https://github.com/user-attachments/assets/55f77fd2-8b8c-47fd-afc6-91d77cbbd4cf" />
 <img width="1748" height="1001" alt="image" src="https://github.com/user-attachments/assets/b7dbf835-22b0-4824-bd7a-c5da4af9d3ba" />
